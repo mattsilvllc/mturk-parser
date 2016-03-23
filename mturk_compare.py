@@ -24,7 +24,7 @@ def col_to_num(col):
 
 
 def _get_headers(csv_reader):
-    """ Returns the header of a parsed CSV"""
+    """ Returns the header of a parsed CSV """
     return list(csv_reader)[0]
 
 
@@ -38,9 +38,10 @@ def _header_is_repeated(csv_reader):
 errors = []
 
 
-def compare(csv_file, grouping_column='A', answer_column='B',
+def compare(csv_file, grouping_column='A', answer_column='B', hitid_column='A',
             generated_file_folder=''):
-    uid_col = col_to_num(grouping_column)  # TODO: col_to_num(grouping_column)-1
+    uid_col = col_to_num(grouping_column)-1
+    hitid_col = col_to_num(hitid_column)-1
 
     reader = csv.reader(
         csv_file, delimiter=str(','), dialect='excel', quotechar=str('"'))
@@ -72,7 +73,7 @@ def compare(csv_file, grouping_column='A', answer_column='B',
 
             # Iterate over rows, excluding header
             for index, row in enumerate(csv_content[rows_offset:]):
-                key = str(row[uid_col-1]).strip()
+                key = str(row[uid_col]).strip()
                 answer = row[col_to_num(answer_column)-1].lower().strip()
                 if csv_ids.get(key):
                     csv_ids.get(key)
@@ -93,7 +94,7 @@ def compare(csv_file, grouping_column='A', answer_column='B',
                 answer_set = list(set(answers))
 
                 # Verify if there are 2 or more answers for current ID
-                if len(answers) and len(answers) >= 2:
+                if answers and len(answers) >= 2:
                     # Verify if answers are the same for current ID
                     if len(answer_set) == 1:
                         csv_match[_id] = answer_set
@@ -110,7 +111,7 @@ def compare(csv_file, grouping_column='A', answer_column='B',
 
             # Set output filename
             output_file_name = 'mturk-compared-{timestamp}.csv'\
-                                          .format(timestamp = int(time.time()))
+                                .format(timestamp=int(time.time()))
 
             # Adds headers to output file
             selected_rows.append(_get_headers(csv_content))
@@ -122,11 +123,12 @@ def compare(csv_file, grouping_column='A', answer_column='B',
             col_count = len(selected_rows[0])
 
             # Picks matching IDs rows and add it to output file
+            content_rows = []
             for row in deepcopy(parsed_content[rows_offset:]):
-                # If row latests columns are empty are not included in
+                # If row latests columns are empty will not be included in
                 # the array, this piece of code adds those trailing
                 # empty columns
-                empty_cols_count = col_count-len(row)
+                empty_cols_count = col_count - len(row)
                 empty_cols = ["" for x in range(0, empty_cols_count)]
                 row.extend(empty_cols)
                 _id = row[col_to_num(grouping_column)-1]
@@ -136,8 +138,16 @@ def compare(csv_file, grouping_column='A', answer_column='B',
                     row[-1] = "True"
                 elif csv_no_match.get(_id):
                     row[-1] = "False"
-                else:
+                elif csv_skipped.get(_id):
                     row[-1] = "*Skipped"
+                else:
+                    row[-1] = ""
+                content_rows.append(row)
+
+            # Sort by Hit ID
+            content_rows = sorted(content_rows, key=lambda x: x[hitid_col])
+
+            for row in content_rows:
                 selected_rows.append(row)
 
             # Write file
@@ -161,6 +171,8 @@ if __name__ == "__main__":
                         default=sys.stdin)
     parser.add_argument('--grouping-column', type=str,
                         default="A")
+    parser.add_argument('--hitid-column', type=str,
+                        default="A")
     parser.add_argument('--answer-column', type=str,
                         default="B")
     args = parser.parse_args()
@@ -168,4 +180,4 @@ if __name__ == "__main__":
     print "Comparing: ", (args.infile).name
 
     compare(args.infile, grouping_column=args.grouping_column,
-            answer_column=args.answer_column)
+            answer_column=args.answer_column, hitid_column=args.hitid_column)
